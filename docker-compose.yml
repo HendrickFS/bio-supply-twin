@@ -1,0 +1,27 @@
+services:
+  django_core:
+    build: .
+    container_name: django_core_service
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount the repository root so manage.py and other top-level files
+      # are available inside the container. This avoids missing manage.py
+      # when the image copies files during build but the volume hides them.
+      - ./:/app
+    command: python manage.py runserver 0.0.0.0:8000
+    depends_on:
+      - mqtt_broker
+
+  mqtt_broker:
+    image: eclipse-mosquitto
+    container_name: mqtt_broker
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      # For local development we provide a minimal example config. Replace
+      # ./mosquitto/config/mosquitto.conf with your own file if needed.
+      - ./mosquitto/config/mosquitto.conf.example:/mosquitto/config/mosquitto.conf
+    restart: always
+

@@ -1,0 +1,13 @@
+# Minimal Mosquitto configuration
+# Listeners
+listener 1883
+protocol mqtt
+
+# allow anonymous connections for local development only
+allow_anonymous true
+
+# persistence (disabled for simple local testing)
+persistence false
+
+# log to stdout so docker logs show broker activity
+log_dest stdout
