@@ -1,26 +1,20 @@
 # core/management/commands/mqtt_consumer.py
 import json
 import logging
-from contextlib import suppress
-
 from django.core.management.base import BaseCommand
-from django.db import transaction
 from django.utils.dateparse import parse_datetime
-
 import paho.mqtt.client as mqtt
-
 from core.models import TransportBox, Sample
-from django.conf import settings
 
 LOG = logging.getLogger("core.mqtt_consumer")
 
 
 class Command(BaseCommand):
-    help = "Run an MQTT consumer that persists bio_supply domain events into the DB."
+    help = "Simple MQTT consumer that logs received messages."
 
     def add_arguments(self, parser):
-        parser.add_argument("--broker", default="mqtt_broker",
-                            help="MQTT broker host (default: mqtt_broker)")
+        parser.add_argument("--broker", default="localhost",
+                            help="MQTT broker host (default: localhost)")
         parser.add_argument("--port", type=int, default=1883,
                             help="MQTT broker port")
 
@@ -29,87 +23,113 @@ class Command(BaseCommand):
         port = options["port"]
 
         client = mqtt.Client()
-        client.on_connect = lambda c, u, f, rc: self._on_connect(c, u, f, rc)
-        client.on_message = lambda c, u, m: self._on_message(c, u, m)
+        client.on_connect = self._on_connect
+        client.on_message = self._on_message
+        client.on_disconnect = self._on_disconnect
 
-        LOG.info("Connecting to MQTT broker %s:%s", broker, port)
-        client.connect(broker, port, keepalive=60)
-        client.loop_forever()
+        print(f"Connecting to MQTT broker {broker}:{port}")
+        print("Consumer will run continuously. Press Ctrl+C to stop.")
+        
+        try:
+            client.connect(broker, port, keepalive=60)
+            client.loop_forever()
+        except KeyboardInterrupt:
+            print("\nShutting down MQTT consumer...")
+            client.disconnect()
+        except Exception as e:
+            print(f"Error: {e}")
+            print("Consumer stopped unexpectedly")
 
     def _on_connect(self, client, userdata, flags, rc):
-        LOG.info("Connected to MQTT (rc=%s). Subscribing to events...", rc)
-        # Subscribe to domain events (adjust topics as your system uses them)
-        client.subscribe("bio_supply/events/#")
+        print(f"Connected to MQTT (rc={rc})")
+        client.subscribe("bio_supply/updates/#")  # Subscribe to bio_supply updates
+        print("Listening for messages...")
+
+    def _on_disconnect(self, client, userdata, rc):
+        print(f"Disconnected from MQTT (rc={rc})")
 
     def _on_message(self, client, userdata, msg):
-        try:
-            payload = json.loads(msg.payload.decode("utf-8"))
-        except Exception:
-            LOG.exception("Invalid JSON on topic %s", msg.topic)
-            return
-
-        topic_parts = msg.topic.strip("/").split("/")
-        # expected: bio_supply/events/<entity_type>/<entity_id>
-        if len(topic_parts) < 4:
-            LOG.warning("Unexpected topic format: %s", msg.topic)
-            return
-
-        _, _, entity_type, entity_id = topic_parts[:4]
-        LOG.debug("Event received type=%s id=%s payload=%s", entity_type, entity_id, payload)
-
-        if entity_type == "box":
-            self._handle_box(entity_id, payload)
-        elif entity_type == "sample":
-            self._handle_sample(entity_id, payload)
+        # Extract model type and ID from topic like: bio_supply/updates/sample/SAMPLE-0001
+        topic_parts = msg.topic.split("/")
+        if len(topic_parts) >= 4:
+            model_type = topic_parts[2]  # e.g., "sample"
+            model_id = topic_parts[3]    # e.g., "SAMPLE-0001"
+            print(f"{model_type.title()} Update: {model_id}")
+            
+            # Parse the message payload
+            try:
+                payload = json.loads(msg.payload.decode('utf-8'))
+                
+                # Update the correct model
+                if model_type == "sample":
+                    self._update_sample(model_id, payload)
+                elif model_type == "box":
+                    self._update_box(model_id, payload)
+                else:
+                    print(f"Unknown model type: {model_type}")
+                    
+            except json.JSONDecodeError:
+                print(f"Invalid JSON payload: {msg.payload.decode('utf-8')}")
         else:
-            LOG.warning("Unknown entity_type %s on topic %s", entity_type, msg.topic)
+            print(f"Topic: {msg.topic}")
+        
+        print(f"Message: {msg.payload.decode('utf-8')}")
+        print("-" * 40)
 
-    def _handle_box(self, box_id: str, payload: dict):
-        # idempotent update
-        defaults = {
-            "geolocation": payload.get("geolocation", "unknown"),
-            "temperature": payload.get("temperature", 0.0),
-            "humidity": payload.get("humidity", 0.0),
-            "status": payload.get("status", "unknown"),
-        }
+    def _update_sample(self, sample_id, payload):
         try:
-            with transaction.atomic():
-                TransportBox.objects.update_or_create(box_id=box_id, defaults=defaults)
-            LOG.info("Box %s upserted", box_id)
-        except Exception:
-            LOG.exception("Failed to upsert box %s", box_id)
+            # Get or create the sample
+            sample, created = Sample.objects.get_or_create(
+                sample_id=sample_id,
+                defaults={
+                    'name': payload.get('name', ''),
+                    'description': payload.get('description', ''),
+                    'status': payload.get('status', 'unknown'),
+                    'temperature': payload.get('temperature', 0.0),
+                    'humidity': payload.get('humidity', 0.0),
+                    'collected_at': parse_datetime(payload.get('collected_at')) if payload.get('collected_at') else None,
+                    'box_id': 1  # You might need to handle box assignment differently
+                }
+            )
+            
+            if not created:
+                # Update existing sample
+                for field, value in payload.items():
+                    if hasattr(sample, field):
+                        if field == 'collected_at' and value:
+                            setattr(sample, field, parse_datetime(value))
+                        else:
+                            setattr(sample, field, value)
+                sample.save()
+            
+            action = "Created" if created else "Updated"
+            print(f"{action} sample: {sample_id}")
+            
+        except Exception as e:
+            print(f"Error updating sample {sample_id}: {e}")
 
-    def _handle_sample(self, sample_id: str, payload: dict):
-        # Ensure box exists (idempotent)
+    def _update_box(self, box_id, payload):
         try:
-            with transaction.atomic():
-                box_ref, _ = TransportBox.objects.get_or_create(
-                    box_id=payload.get("box_id", "unknown"),
-                    defaults={
-                        "geolocation": payload.get("geolocation", "unknown"),
-                        "temperature": payload.get("temperature", 0.0),
-                        "humidity": payload.get("humidity", 0.0),
-                        "status": "created_by_event",
-                    },
-                )
-
-                collected_at = None
-                if "collected_at" in payload:
-                    with suppress(Exception):
-                        collected_at = parse_datetime(payload["collected_at"])
-
-                Sample.objects.update_or_create(
-                    sample_id=sample_id,
-                    defaults={
-                        "box": box_ref,
-                        "name": payload.get("name", ""),
-                        "description": payload.get("description", ""),
-                        "collected_at": collected_at,
-                        "status": payload.get("status", "unknown"),
-                        "temperature": payload.get("temperature", 0.0),
-                        "humidity": payload.get("humidity", 0.0),
-                    },
-                )
-            LOG.info("Sample %s upserted", sample_id)
-        except Exception:
-            LOG.exception("Failed to upsert sample %s", sample_id)
+            # Get or create the box
+            box, created = TransportBox.objects.get_or_create(
+                box_id=box_id,
+                defaults={
+                    'geolocation': payload.get('geolocation', 'unknown'),
+                    'temperature': payload.get('temperature', 0.0),
+                    'humidity': payload.get('humidity', 0.0),
+                    'status': payload.get('status', 'unknown'),
+                }
+            )
+            
+            if not created:
+                # Update existing box
+                for field, value in payload.items():
+                    if hasattr(box, field):
+                        setattr(box, field, value)
+                box.save()
+            
+            action = "Created" if created else "Updated"
+            print(f"{action} box: {box_id}")
+            
+        except Exception as e:
+            print(f"Error updating box {box_id}: {e}")

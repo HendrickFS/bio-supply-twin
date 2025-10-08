@@ -13,6 +13,17 @@ services:
     depends_on:
       - mqtt_broker
 
+  mqtt_consumer:
+    build: .
+    container_name: mqtt_consumer_service
+    volumes:
+      - ./:/app
+    command: python manage.py mqtt_consumer --broker mqtt_broker
+    depends_on:
+      - mqtt_broker
+      - django_core
+    restart: always
+
   mqtt_broker:
     image: eclipse-mosquitto
     container_name: mqtt_broker
