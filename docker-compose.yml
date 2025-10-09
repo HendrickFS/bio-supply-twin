@@ -26,6 +26,25 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
+  digital_twin:
+    build: ./digital_twin_service
+    container_name: digital_twin_service
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./db.sqlite3:/app/db.sqlite3:ro  # Read-only access to Django database
+    depends_on:
+      - django_core
+    restart: always
+    environment:
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
   mqtt_broker:
     image: eclipse-mosquitto
     container_name: mqtt_broker
