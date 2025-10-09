@@ -15,11 +15,20 @@ Key Features:
 
 Endpoints:
     GET /              - Health check and service info
+    GET /boxes        - List all transport boxes
+    GET /boxes/{id}   - Retrieve specific transport box details
+    GET /samples      - List all biological samples
+    GET /samples/{id} - Retrieve specific biological sample details
+    GET /telemetry    - Fetch telemetry data with filtering options
+    GET /sla          - List SLA configurations
+    POST /sla         - Create new SLA configuration
+    GET /alerts       - List alerts with filtering options
 
 Dependencies:
     - FastAPI: Web framework and API documentation
     - aiosqlite: Async SQLite database operations
     - database.py: Database manager for Django DB access
+    - analytics.py: Analytics utilities
 
 """
 
@@ -37,6 +46,7 @@ app = FastAPI(
 )
 
 from .database import DatabaseManager
+from .analytics import compute_compliance
 from .models import TransportBox as BoxModel, Sample as SampleModel, TelemetryReading, SLAConfig, Alert, Stats
 
 db = DatabaseManager()
@@ -120,6 +130,30 @@ async def get_stats():
     num_samples = await db.sample_count()
     num_active_alerts = await db.active_alert_count()
     return {"num_boxes": num_boxes, "num_samples": num_samples, "num_active_alerts": num_active_alerts}
+
+
+@app.get("/analytics/compliance")
+async def analytics_compliance(
+    box: int | None = Query(None),
+    sample: int | None = Query(None),
+    since: str | None = Query(None),
+    sla_name: str | None = Query(None, description="Optional SLA name; if omitted, use latest"),
+):
+    telemetry = await db.list_telemetry(box_id=box, sample_id=sample, since_iso=since)
+    slas = await db.list_sla()
+    if not slas:
+        raise HTTPException(status_code=400, detail="No SLA configured")
+    sla = None
+    if sla_name:
+        for s in slas:
+            if s["name"] == sla_name:
+                sla = s
+                break
+        if sla is None:
+            raise HTTPException(status_code=404, detail="SLA not found")
+    else:
+        sla = slas[0]
+    return compute_compliance(telemetry, sla)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8001, reload=True)
