@@ -25,6 +25,7 @@ Dependencies:
 
 from fastapi import FastAPI, HTTPException
 import logging
+import uvicorn
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("digital_twin_service")
@@ -43,3 +44,6 @@ async def root():
         "status": "running",
         "version": "1.0.0"
     }
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8001, reload=True)
