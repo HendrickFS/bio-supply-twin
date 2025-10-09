@@ -1,10 +1,16 @@
 # core/management/commands/mqtt_consumer.py
 import json
 import logging
+import os
+import django
 from django.core.management.base import BaseCommand
 from django.utils.dateparse import parse_datetime
 import paho.mqtt.client as mqtt
 from core.models import TransportBox, Sample
+
+# Ensure Django is configured
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'bio_supply_twin.settings')
+django.setup()
 
 LOG = logging.getLogger("core.mqtt_consumer")
 
@@ -22,16 +28,20 @@ class Command(BaseCommand):
         broker = options["broker"]
         port = options["port"]
 
-        client = mqtt.Client()
+        client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
         client.on_connect = self._on_connect
         client.on_message = self._on_message
         client.on_disconnect = self._on_disconnect
+        client.on_subscribe = self._on_subscribe
 
-        print(f"Connecting to MQTT broker {broker}:{port}")
+        print(f"🔄 Connecting to MQTT broker {broker}:{port}")
         print("Consumer will run continuously. Press Ctrl+C to stop.")
         
         try:
-            client.connect(broker, port, keepalive=60)
+            print("🔄 Attempting connection...")
+            result = client.connect(broker, port, keepalive=60)
+            print(f"🔍 Connection attempt result: {result}")
+            print("🔄 Starting event loop...")
             client.loop_forever()
         except KeyboardInterrupt:
             print("\nShutting down MQTT consumer...")
@@ -41,24 +51,52 @@ class Command(BaseCommand):
             print("Consumer stopped unexpectedly")
 
     def _on_connect(self, client, userdata, flags, rc):
-        print(f"Connected to MQTT (rc={rc})")
-        client.subscribe("bio_supply/updates/#")  # Subscribe to bio_supply updates
-        print("Listening for messages...")
+        if rc == 0:
+            print(f"✅ Connected to MQTT successfully (rc={rc})")
+            result = client.subscribe("bio_supply/updates/#")
+            if result[0] == mqtt.MQTT_ERR_SUCCESS:
+                print("✅ Successfully subscribed to bio_supply/updates/#")
+            else:
+                print(f"❌ Failed to subscribe (error code: {result[0]})")
+            print("🔊 Listening for messages...")
+        else:
+            print(f"❌ Failed to connect to MQTT (rc={rc})")
+            if rc == 1:
+                print("   Connection refused - incorrect protocol version")
+            elif rc == 2:
+                print("   Connection refused - invalid client identifier")
+            elif rc == 3:
+                print("   Connection refused - server unavailable")
+            elif rc == 4:
+                print("   Connection refused - bad username or password")
+            elif rc == 5:
+                print("   Connection refused - not authorised")
 
     def _on_disconnect(self, client, userdata, rc):
         print(f"Disconnected from MQTT (rc={rc})")
 
+    def _on_subscribe(self, client, userdata, mid, granted_qos):
+        print(f"✅ Subscription confirmed (mid={mid}, qos={granted_qos})")
+        print("🔍 Now publishing test message to verify connection...")
+        # Send a test message to verify the loop is working
+        client.publish("bio_supply/updates/test", "connection_test")
+
     def _on_message(self, client, userdata, msg):
+        print(f"📨 MESSAGE RECEIVED!")
+        print(f"Topic: {msg.topic}")
+        print(f"Payload: {msg.payload.decode('utf-8')}")
+        
         # Extract model type and ID from topic like: bio_supply/updates/sample/SAMPLE-0001
         topic_parts = msg.topic.split("/")
         if len(topic_parts) >= 4:
             model_type = topic_parts[2]  # e.g., "sample"
             model_id = topic_parts[3]    # e.g., "SAMPLE-0001"
-            print(f"{model_type.title()} Update: {model_id}")
+            print(f"Processing {model_type.title()} Update: {model_id}")
             
             # Parse the message payload
             try:
                 payload = json.loads(msg.payload.decode('utf-8'))
+                print(f"Parsed payload: {payload}")
                 
                 # Update the correct model
                 if model_type == "sample":
@@ -66,18 +104,29 @@ class Command(BaseCommand):
                 elif model_type == "box":
                     self._update_box(model_id, payload)
                 else:
-                    print(f"Unknown model type: {model_type}")
+                    print(f"❌ Unknown model type: {model_type}")
                     
-            except json.JSONDecodeError:
-                print(f"Invalid JSON payload: {msg.payload.decode('utf-8')}")
+            except json.JSONDecodeError as e:
+                print(f"❌ Invalid JSON payload: {e}")
+                print(f"Raw payload: {msg.payload.decode('utf-8')}")
         else:
-            print(f"Topic: {msg.topic}")
+            print(f"❌ Unexpected topic format: {msg.topic}")
         
-        print(f"Message: {msg.payload.decode('utf-8')}")
-        print("-" * 40)
+        print("-" * 50)
 
     def _update_sample(self, sample_id, payload):
         try:
+            # Get or create a default transport box if needed
+            default_box, _ = TransportBox.objects.get_or_create(
+                box_id="DEFAULT-BOX",
+                defaults={
+                    'geolocation': 'unknown',
+                    'temperature': 0.0,
+                    'humidity': 0.0,
+                    'status': 'default',
+                }
+            )
+            
             # Get or create the sample
             sample, created = Sample.objects.get_or_create(
                 sample_id=sample_id,
@@ -88,7 +137,7 @@ class Command(BaseCommand):
                     'temperature': payload.get('temperature', 0.0),
                     'humidity': payload.get('humidity', 0.0),
                     'collected_at': parse_datetime(payload.get('collected_at')) if payload.get('collected_at') else None,
-                    'box_id': 1  # You might need to handle box assignment differently
+                    'box': default_box  # Use the box object, not box_id
                 }
             )
             
