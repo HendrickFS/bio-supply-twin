@@ -86,3 +86,44 @@ class Sample(BaseModel):
             humidity=record['humidity'],
             last_updated=record['last_updated']
         )
+
+
+class TelemetryReading(BaseModel):
+    id: Optional[int] = None
+    box: Optional[int] = Field(None, description="FK id to core_transportbox")
+    sample: Optional[int] = Field(None, description="FK id to core_sample")
+    timestamp: datetime
+    temperature: float
+    humidity: float
+    geolocation: Optional[str] = ""
+
+
+class SLAConfig(BaseModel):
+    id: Optional[int] = None
+    name: str
+    temp_min: float
+    temp_max: float
+    humidity_min: float
+    humidity_max: float
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class Alert(BaseModel):
+    id: Optional[int] = None
+    box: Optional[int] = None
+    sample: Optional[int] = None
+    type: str
+    severity: str = Field(..., description="info|warning|critical")
+    message: str = ""
+    started_at: datetime
+    last_seen_at: datetime
+    resolved_at: Optional[datetime] = None
+    acknowledged_at: Optional[datetime] = None
+    is_active: bool = True
+
+
+class Stats(BaseModel):
+    num_boxes: int
+    num_samples: int
+    num_active_alerts: int

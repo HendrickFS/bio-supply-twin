@@ -41,6 +41,15 @@ Powered by Django REST Framework ViewSets with custom lookup fields:
   - Create: `POST /samples/`
   - Update: `PUT|PATCH /samples/{sample_id}/`
   - Delete: `DELETE /samples/{sample_id}/`
+ - Telemetry (analytics time-series)
+   - List/Create: `GET|POST /telemetry/`
+   - Detail: `GET|PUT|PATCH|DELETE /telemetry/{id}/`
+ - SLA configurations (threshold bands)
+   - List/Create: `GET|POST /sla/`
+   - Detail: `GET|PUT|PATCH|DELETE /sla/{id}/`
+ - Alerts (anomaly/excursion lifecycle)
+   - List/Create: `GET|POST /alerts/`
+   - Detail: `GET|PUT|PATCH|DELETE /alerts/{id}/`
 
 
 

@@ -4,8 +4,8 @@ Bio Supply Core Service - Django REST API Views
 
 Purpose:
     Django REST Framework ViewSets for biological supply chain API endpoints.
-    Provides CRUD operations for transport boxes and biological samples
-    with RESTful API interface for external systems and frontend applications.
+    Provides CRUD operations for transport vehicles, transport boxes, samples, telemetry readings,
+    SLA configurations, and alerts with RESTful API interface for external systems and frontend applications.
 
 Key Features:
     - ModelViewSet for full CRUD operations (Create, Read, Update, Delete)
@@ -29,6 +29,27 @@ API Endpoints:
         - PUT/PATCH /api/samples/{sample_id}/: Update sample
         - DELETE /api/samples/{sample_id}/: Delete sample
 
+    TelemetryReading ViewSet:
+        - GET /api/telemetry/: List all telemetry readings
+        - GET /api/telemetry/{telemetry_id}/: Retrieve specific telemetry reading
+        - POST /api/telemetry/: Create new telemetry reading
+        - PUT/PATCH /api/telemetry/{telemetry_id}/: Update telemetry reading
+        - DELETE /api/telemetry/{telemetry_id}/: Delete telemetry reading
+
+    SLAConfig ViewSet:
+        - GET /api/sla/: List all SLA configurations
+        - GET /api/sla/{sla_id}/: Retrieve specific SLA configuration
+        - POST /api/sla/: Create new SLA configuration
+        - PUT/PATCH /api/sla/{sla_id}/: Update SLA configuration
+        - DELETE /api/sla/{sla_id}/: Delete SLA configuration
+
+    Alert ViewSet:
+        - GET /api/alerts/: List all alerts
+        - GET /api/alerts/{alert_id}/: Retrieve specific alert
+        - POST /api/alerts/: Create new alert
+        - PUT/PATCH /api/alerts/{alert_id}/: Update alert
+        - DELETE /api/alerts/{alert_id}/: Delete alert
+
 Lookup Fields:
     - TransportBox: Uses 'box_id' instead of default 'id'
     - Sample: Uses 'sample_id' instead of default 'id'
@@ -42,8 +63,14 @@ Dependencies:
 
 from django.shortcuts import render
 from rest_framework import viewsets
-from .models import TransportBox, Sample
-from .serializers import TransportBoxSerializer, SampleSerializer
+from .models import TransportBox, Sample, TelemetryReading, SLAConfig, Alert
+from .serializers import (
+    TransportBoxSerializer,
+    SampleSerializer,
+    TelemetryReadingSerializer,
+    SLAConfigSerializer,
+    AlertSerializer,
+)
 
 
 class TransportBoxViewSet(viewsets.ModelViewSet):
@@ -55,3 +82,18 @@ class SampleViewSet(viewsets.ModelViewSet):
     queryset = Sample.objects.all()
     serializer_class = SampleSerializer
     lookup_field = 'sample_id'
+
+
+class TelemetryReadingViewSet(viewsets.ModelViewSet):
+    queryset = TelemetryReading.objects.all().order_by('-timestamp')
+    serializer_class = TelemetryReadingSerializer
+
+
+class SLAConfigViewSet(viewsets.ModelViewSet):
+    queryset = SLAConfig.objects.all()
+    serializer_class = SLAConfigSerializer
+
+
+class AlertViewSet(viewsets.ModelViewSet):
+    queryset = Alert.objects.all().order_by('-started_at')
+    serializer_class = AlertSerializer
