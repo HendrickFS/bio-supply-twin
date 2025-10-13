@@ -45,9 +45,9 @@ app = FastAPI(
     version="1.0.0",
 )
 
-from .database import DatabaseManager
-from .analytics import compute_compliance
-from .models import TransportBox as BoxModel, Sample as SampleModel, TelemetryReading, SLAConfig, Alert, Stats
+from database import DatabaseManager
+from analytics import compute_compliance
+from models import TransportBox as BoxModel, Sample as SampleModel, TelemetryReading, SLAConfig, Alert, Stats
 
 db = DatabaseManager()
 

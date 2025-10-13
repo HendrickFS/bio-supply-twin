@@ -17,8 +17,10 @@ docker compose up --build
 
 ### Local Development
 ```bash
+cd backend
 python -m venv venv
-venv\Scripts\activate
+venv\Scripts\activate  # On Windows
+# source venv/bin/activate  # On Unix/macOS
 pip install -r requirements.txt
 python manage.py migrate
 python manage.py runserver
@@ -54,10 +56,9 @@ python manage.py runserver
 - `GET /stats` - System overview metrics
 - `GET /boxes, /samples` - Read-only data access
 
-
-
 ## Testing
 ```bash
+cd backend
 pytest -q
 ```
 
@@ -65,23 +66,24 @@ pytest -q
 
 ### Run FastAPI Service Separately
 ```bash
+cd backend
 pip install -r digital_twin_service/requirements.txt
 uvicorn digital_twin_service.main:app --reload --port 8001
 ```
 
 ### MQTT Consumer
 ```bash
+cd backend
 python manage.py mqtt_consumer
 ```
 
 ## Project Structure
 ```
-├── core/                    # Django models, views, serializers
-├── digital_twin_service/    # FastAPI analytics service
-├── mosquitto/               # MQTT broker configuration
-└── docker-compose.yml       # Service orchestration
+├── backend/
+│   ├── core/                    # Django models, views, serializers
+│   ├── digital_twin_service/    # FastAPI analytics service
+│   ├── mosquitto/               # MQTT broker configuration
+│   └── ...
+├── docker-compose.yml           # Service orchestration
+└── README.md                    # This file
 ```
-
-
-
-

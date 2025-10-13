@@ -1,22 +1,20 @@
-version: '3.8'
-
 services:
   django_core:
-    build: .
+    build: ./backend
     container_name: django_core_service
     ports:
       - "8000:8000"
     volumes:
-      - ./:/app
+      - ./backend:/app
     command: python manage.py runserver 0.0.0.0:8000
     depends_on:
       - mqtt_broker
 
   mqtt_consumer:
-    build: .
+    build: ./backend
     container_name: mqtt_consumer_service
     volumes:
-      - ./:/app
+      - ./backend:/app
     command: python -u manage.py mqtt_consumer --broker host.docker.internal --port 1883
     depends_on:
       - django_core
@@ -27,12 +25,13 @@ services:
       - "host.docker.internal:host-gateway"
 
   digital_twin:
-    build: ./digital_twin_service
+    build: ./backend/digital_twin_service
     container_name: digital_twin_service
     ports:
       - "8001:8001"
     volumes:
-      - ./db.sqlite3:/app/db.sqlite3:ro  # Read-only access to Django database
+      - ./backend/db.sqlite3:/app/db.sqlite3:ro  # Read-only access to Django database
+    command: uvicorn main:app --host 0.0.0.0 --port 8001
     depends_on:
       - django_core
     restart: always
@@ -52,6 +51,5 @@ services:
       - "1883:1883"
       - "9001:9001"
     volumes:
-      - ./mosquitto/config/mosquitto.conf.example:/mosquitto/config/mosquitto.conf
+      - ./backend/mosquitto/config/mosquitto.conf.example:/mosquitto/config/mosquitto.conf
     restart: always
-
