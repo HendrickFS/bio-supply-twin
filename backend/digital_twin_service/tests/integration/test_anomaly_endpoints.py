@@ -1,9 +1,9 @@
 import pytest
 import asyncio
+from httpx import AsyncClient
 
 # Optional HTTP client for integration tests
 httpx = pytest.importorskip("httpx")
-from httpx import AsyncClient
 from digital_twin_service.main import app
 
 
@@ -11,9 +11,12 @@ from digital_twin_service.main import app
 async def test_anomalies_endpoint_monkeypatched(monkeypatch):
     # Prepare synthetic telemetry
     telemetry = [
-        {"timestamp": "2025-01-01T00:00:00Z", "temperature": 4.0, "humidity": 50.0},
-        {"timestamp": "2025-01-01T00:15:00Z", "temperature": 15.0, "humidity": 50.0},  # anomaly
-        {"timestamp": "2025-01-01T00:30:00Z", "temperature": 3.9, "humidity": 49.0},
+        {"timestamp": "2025-01-01T00:00:00Z", "temperature": 4.0, 
+         "humidity": 50.0},
+        {"timestamp": "2025-01-01T00:15:00Z", "temperature": 15.0, 
+         "humidity": 50.0},  # anomaly
+        {"timestamp": "2025-01-01T00:30:00Z", "temperature": 3.9, 
+         "humidity": 49.0},
     ]
 
     async def fake_list_telemetry(box_id=None, sample_id=None, since_iso=None):

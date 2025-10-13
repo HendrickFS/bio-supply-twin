@@ -1,11 +1,10 @@
 import pytest
-
-# Optional dependency: numpy. Skip tests if not installed.
-np = pytest.importorskip("numpy")
-
 from digital_twin_service.anomaly_detector import (
     AnomalyDetector, DetectionConfig, AnomalyAlgorithm
 )
+
+# Optional dependency: numpy. Skip tests if not installed.
+np = pytest.importorskip("numpy")
 
 
 @pytest.mark.parametrize("algorithm", [
@@ -32,14 +31,18 @@ def test_statistical_algorithms_detect_known_anomalies(algorithm):
 
     config = DetectionConfig(algorithm=algorithm, window_size=10)
     detector = AnomalyDetector(config)
-    results = detector.detect_anomalies(telemetry, metrics=["temperature"]) 
+    results = detector.detect_anomalies(telemetry, metrics=["temperature"])
 
     # Should detect at least the inserted anomalies
-    assert any(r.value in anomalies for r in results), "Algorithm failed to find inserted anomalies"
+    assert any(r.value in anomalies for r in results), \
+        "Algorithm failed to find inserted anomalies"
 
 
 def test_convenience_functions_return_list():
-    telemetry = [{"timestamp": "2025-01-01T00:00:00Z", "temperature": 5.0, "humidity": 50.0}] * 10
+    telemetry = [
+        {"timestamp": "2025-01-01T00:00:00Z", "temperature": 5.0, 
+         "humidity": 50.0}
+    ] * 10
     detector = AnomalyDetector()
     results = detector.detect_anomalies(telemetry)
     assert isinstance(results, list)

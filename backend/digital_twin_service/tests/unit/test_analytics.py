@@ -4,7 +4,12 @@ from digital_twin_service.analytics import compute_compliance
 
 @pytest.fixture
 def sla():
-    return {"temp_min": 2.0, "temp_max": 8.0, "humidity_min": 30.0, "humidity_max": 60.0}
+    return {
+        "temp_min": 2.0, 
+        "temp_max": 8.0, 
+        "humidity_min": 30.0, 
+        "humidity_max": 60.0
+    }
 
 
 def test_empty_telemetry_returns_100_percent(sla):
