@@ -1,0 +1,51 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: user
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: bio_supply_twin_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U user -d bio_supply_twin_db"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 pytest pytest-django psycopg2-binary
+        pip install -r backend/requirements.txt
+
+    - name: Lint with flake8
+      run: |
+        flake8 backend/
+
+    - name: Run tests
+      env:
+        DATABASE_URL: postgres://user:password@localhost:5432/bio_supply_twin_db
+      run: |
+        python manage.py migrate --settings=backend.settings
+        pytest backend/
