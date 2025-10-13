@@ -1,4 +1,21 @@
 services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres_db
+    environment:
+      POSTGRES_DB: bio_supply_twin_db
+      POSTGRES_USER: bio_user
+      POSTGRES_PASSWORD: bio_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bio_user -d bio_supply_twin_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   django_core:
     build: ./backend
     container_name: django_core_service
@@ -6,9 +23,16 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app
-    command: python manage.py runserver 0.0.0.0:8000
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8000"
     depends_on:
-      - mqtt_broker
+      postgres:
+        condition: service_healthy
+      mqtt_broker:
+        condition: service_started
+    environment:
+      - DATABASE_URL=postgresql://bio_user:bio_password@postgres:5432/bio_supply_twin_db
 
   mqtt_consumer:
     build: ./backend
@@ -17,10 +41,12 @@ services:
       - ./backend:/app
     command: python -u manage.py mqtt_consumer --broker host.docker.internal --port 1883
     depends_on:
-      - django_core
+      django_core:
+        condition: service_started
     restart: always
     environment:
       - PYTHONUNBUFFERED=1
+      - DATABASE_URL=postgresql://bio_user:bio_password@postgres:5432/bio_supply_twin_db
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
@@ -29,14 +55,16 @@ services:
     container_name: digital_twin_service
     ports:
       - "8001:8001"
-    volumes:
-      - ./backend/db.sqlite3:/app/db.sqlite3:ro  # Read-only access to Django database
     command: uvicorn main:app --host 0.0.0.0 --port 8001
     depends_on:
-      - django_core
+      django_core:
+        condition: service_started
+      postgres:
+        condition: service_healthy
     restart: always
     environment:
       - PYTHONUNBUFFERED=1
+      - DATABASE_URL=postgresql://bio_user:bio_password@postgres:5432/bio_supply_twin_db
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
       interval: 30s
@@ -53,3 +81,6 @@ services:
     volumes:
       - ./backend/mosquitto/config/mosquitto.conf.example:/mosquitto/config/mosquitto.conf
     restart: always
+
+volumes:
+  postgres_data:

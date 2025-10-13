@@ -9,6 +9,21 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: bio_supply_twin_test
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U test_user -d bio_supply_twin_test"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
 
     steps:
     - uses: actions/checkout@v4
@@ -27,12 +42,15 @@ jobs:
     - name: Run Django tests
       env:
         DJANGO_SETTINGS_MODULE: bio_supply_twin.settings
+        DATABASE_URL: postgresql://test_user:test_password@localhost:5432/bio_supply_twin_test
       run: |
         cd backend
         python manage.py migrate
         python manage.py test
         
     - name: Run FastAPI tests
+      env:
+        DATABASE_URL: postgresql://test_user:test_password@localhost:5432/bio_supply_twin_test
       run: |
         cd backend
         pytest digital_twin_service/tests/
