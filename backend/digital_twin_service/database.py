@@ -3,12 +3,12 @@ Bio Supply Digital Twin Service - Database Manager
 =================================================
 
 Purpose:
-    Async database manager for accessing Django SQLite database from the
+    Async database manager for accessing Django PostgreSQL database from the
     digital twin service. Provides read-only access to biological samples
     and transport box data with optimal performance.
 
 Key Features:
-    - Async SQLite operations using aiosqlite
+    - Async PostgreSQL operations using asyncpg
     - Read access to Django ORM-generated tables
     - Error handling and logging for database operations
     - Efficient data retrieval with proper SQL joins
