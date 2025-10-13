@@ -41,15 +41,29 @@ Dependencies:
 
 from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import Optional, List, Dict, Any
+from typing import Optional, Dict, Any
+
 
 class TransportBox(BaseModel):
-    box_id: str = Field(..., description="Unique identifier from IoT system")
-    geolocation: str = Field(..., description="GPS coordinates or location name")
-    temperature: float = Field(..., description="Environmental temperature reading")
-    humidity: float = Field(..., description="Environmental humidity reading")
-    last_updated: datetime = Field(default_factory=datetime.utcnow, description="Auto-updated timestamp")
-    status: str = Field(..., description="Operational status (active, maintenance, etc.)")
+    box_id: str = Field(
+        ..., description="Unique identifier from IoT system"
+    )
+    geolocation: str = Field(
+        ..., description="GPS coordinates or location name"
+    )
+    temperature: float = Field(
+        ..., description="Environmental temperature reading"
+    )
+    humidity: float = Field(
+        ..., description="Environmental humidity reading"
+    )
+    last_updated: datetime = Field(
+        default_factory=datetime.utcnow, 
+        description="Auto-updated timestamp"
+    )
+    status: str = Field(
+        ..., description="Operational status (active, maintenance, etc.)"
+    )
 
     @classmethod
     def from_db_record(cls, record: Dict[str, Any]) -> 'TransportBox':
@@ -62,16 +76,29 @@ class TransportBox(BaseModel):
             status=record['status']
         )
 
+
 class Sample(BaseModel):
-    sample_id: str = Field(..., description="Unique identifier from lab system")
+    sample_id: str = Field(
+        ..., description="Unique identifier from lab system"
+    )
     box_id: str = Field(..., description="Foreign key to TransportBox")
     name: str = Field(..., description="Sample name")
     description: str = Field(..., description="Sample description")
     collected_at: datetime = Field(..., description="Collection timestamp")
-    status: str = Field(..., description="Sample status (collected, processed, stored, etc.)")
-    temperature: float = Field(..., description="Sensor temperature reading at sample level")
-    humidity: float = Field(..., description="Sensor humidity reading at sample level")
-    last_updated: datetime = Field(default_factory=datetime.utcnow, description="Auto-updated timestamp")
+    status: str = Field(
+        ..., 
+        description="Sample status (collected, processed, stored, etc.)"
+    )
+    temperature: float = Field(
+        ..., description="Sensor temperature reading at sample level"
+    )
+    humidity: float = Field(
+        ..., description="Sensor humidity reading at sample level"
+    )
+    last_updated: datetime = Field(
+        default_factory=datetime.utcnow, 
+        description="Auto-updated timestamp"
+    )
 
     @classmethod
     def from_db_record(cls, record: Dict[str, Any]) -> 'Sample':

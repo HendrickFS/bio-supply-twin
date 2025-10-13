@@ -139,7 +139,9 @@ async def analytics_compliance(
     since: str | None = Query(None),
     sla_name: str | None = Query(None, description="Optional SLA name; if omitted, use latest"),
 ):
-    telemetry = await db.list_telemetry(box_id=box, sample_id=sample, since_iso=since)
+    telemetry = await db.list_telemetry(
+        box_id=box, sample_id=sample, since_iso=since
+    )
     slas = await db.list_sla()
     if not slas:
         raise HTTPException(status_code=400, detail="No SLA configured")
@@ -154,6 +156,7 @@ async def analytics_compliance(
     else:
         sla = slas[0]
     return compute_compliance(telemetry, sla)
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8001, reload=True)
