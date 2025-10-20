@@ -33,6 +33,7 @@ Dependencies:
 """
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 import logging
 import uvicorn
 
@@ -43,6 +44,24 @@ app = FastAPI(
     title="Bio Supply Digital Twin Service",
     description="A service that simulates and analyzes digital twins of biological samples.",
     version="1.0.0",
+)
+
+# Enable CORS for local development (Vite dev server and Django backend)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 from database import DatabaseManager
@@ -64,7 +83,7 @@ async def root():
 @app.get("/health")
 async def health_check():
     """ Health check with simple cache status """
-    cache_stats = cache.stats()
+    cache_stats = cache.get_cache_stats()
     return {
         "status": "healthy",
         "service": "digital_twin", 
@@ -92,6 +111,12 @@ async def get_box(box_id: str):
 async def list_samples():
     """Get all samples (no caching)."""
     samples = await db.get_all_samples()
+    # Ensure schema compatibility: ids as strings
+    for s in samples:
+        if 'box_id' in s and s['box_id'] is not None:
+            s['box_id'] = str(s['box_id'])
+        if 'sample_id' in s and s['sample_id'] is not None:
+            s['sample_id'] = str(s['sample_id'])
     return samples
 
 
@@ -100,6 +125,11 @@ async def get_sample(sample_id: str):
     sample = await db.get_sample(sample_id)
     if not sample:
         raise HTTPException(status_code=404, detail="Sample not found")
+    # Ensure schema compatibility
+    if 'box_id' in sample and sample['box_id'] is not None:
+        sample['box_id'] = str(sample['box_id'])
+    if 'sample_id' in sample and sample['sample_id'] is not None:
+        sample['sample_id'] = str(sample['sample_id'])
     return sample
 
 
@@ -160,7 +190,7 @@ async def get_stats():
     }
     
     # Step 3: Store in cache for 30 seconds
-    cache.set("stats", stats, ttl_seconds=30)
+    cache.set("stats", stats, ttl=30)
     return stats
 
 
@@ -194,7 +224,7 @@ async def analytics_compliance(
 @app.get("/cache/stats")
 async def get_cache_stats():
     """See basic cache information."""
-    return cache.stats()
+    return cache.get_cache_stats()
 
 
 @app.delete("/cache/clear")

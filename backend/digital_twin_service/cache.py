@@ -176,6 +176,11 @@ class CacheManager:
             logger.error(f"Cache stats error: {e}")
             return {"status": "error", "error": str(e)}
 
+    # Backward-compatible alias
+    def stats(self) -> Dict[str, Any]:
+        """Alias for get_cache_stats for backward compatibility."""
+        return self.get_cache_stats()
+
     def _calculate_hit_rate(self, hits: int, misses: int) -> float:
         """Calculate cache hit rate percentage."""
         total = hits + misses
