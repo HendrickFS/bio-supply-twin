@@ -6,10 +6,22 @@
 
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001';
+// Django Core Service - Transport boxes, samples, telemetry
+const DJANGO_API_URL = import.meta.env.VITE_DJANGO_API_URL || 'http://localhost:8000';
 
-const api = axios.create({
-  baseURL: API_BASE_URL,
+// FastAPI Digital Twin Service - Stats, health, cache
+const FASTAPI_API_URL = import.meta.env.VITE_FASTAPI_API_URL || 'http://localhost:8001';
+
+const djangoApi = axios.create({
+  baseURL: DJANGO_API_URL,
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+const fastApi = axios.create({
+  baseURL: FASTAPI_API_URL,
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
@@ -17,10 +29,18 @@ const api = axios.create({
 });
 
 // Response interceptor for error handling
-api.interceptors.response.use(
+djangoApi.interceptors.response.use(
   (response: any) => response,
   (error: any) => {
-    console.error('API Error:', error.response?.data || error.message);
+    console.error('Django API Error:', error.response?.data || error.message);
+    return Promise.reject(error);
+  }
+);
+
+fastApi.interceptors.response.use(
+  (response: any) => response,
+  (error: any) => {
+    console.error('FastAPI Error:', error.response?.data || error.message);
     return Promise.reject(error);
   }
 );
@@ -33,6 +53,7 @@ export interface Stats {
 }
 
 export interface TransportBox {
+  id: number;
   box_id: string;
   geolocation: string;
   temperature: number;
@@ -53,6 +74,16 @@ export interface Sample {
   last_updated: string;
 }
 
+export interface TelemetryReading {
+  id: number;
+  box: number | null;
+  sample: number | null;
+  timestamp: string;
+  temperature: number;
+  humidity: number;
+  geolocation: string;
+}
+
 export interface CacheStats {
   status: string;
   memory_used?: string;
@@ -67,47 +98,58 @@ export interface HealthCheck {
 
 // API Methods
 export const apiService = {
-  // Health & Stats
+  // Health & Stats (FastAPI)
   getHealth: async (): Promise<HealthCheck> => {
-    const { data } = await api.get('/health');
+    const { data } = await fastApi.get('/health');
     return data;
   },
 
   getStats: async (): Promise<Stats> => {
-    const { data } = await api.get('/stats');
+    const { data } = await fastApi.get('/stats');
     return data;
   },
 
   getCacheStats: async (): Promise<CacheStats> => {
-    const { data } = await api.get('/cache/stats');
+    const { data } = await fastApi.get('/cache/stats');
     return data;
   },
 
   clearCache: async (): Promise<void> => {
-    await api.delete('/cache/clear');
+    await fastApi.delete('/cache/clear');
   },
 
-  // Transport Boxes
+  // Transport Boxes (Django)
   getBoxes: async (): Promise<TransportBox[]> => {
-    const { data } = await api.get('/boxes');
+    const { data } = await djangoApi.get('/api/transport_boxes/');
     return data;
   },
 
   getBox: async (boxId: string): Promise<TransportBox> => {
-    const { data } = await api.get(`/boxes/${boxId}`);
+    const { data } = await djangoApi.get(`/api/transport_boxes/${boxId}/`);
     return data;
   },
 
-  // Samples
+  // Samples (Django)
   getSamples: async (): Promise<Sample[]> => {
-    const { data } = await api.get('/samples');
+    const { data } = await djangoApi.get('/api/samples/');
     return data;
   },
 
   getSample: async (sampleId: string): Promise<Sample> => {
-    const { data } = await api.get(`/samples/${sampleId}`);
+    const { data } = await djangoApi.get(`/api/samples/${sampleId}/`);
+    return data;
+  },
+
+  // Telemetry (Django)
+  getTelemetry: async (): Promise<TelemetryReading[]> => {
+    const { data } = await djangoApi.get('/api/telemetry/');
+    return data;
+  },
+
+  getBoxTelemetry: async (boxId: number): Promise<TelemetryReading[]> => {
+    const { data } = await djangoApi.get(`/api/telemetry/?box=${boxId}`);
     return data;
   },
 };
 
-export default api;
+export default djangoApi;

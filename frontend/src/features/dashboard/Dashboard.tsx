@@ -78,8 +78,8 @@ export const Dashboard = () => {
 
   useEffect(() => {
     fetchData();
-    // Auto-refresh every 30 seconds
-    const interval = setInterval(fetchData, 30000);
+    // Auto-refresh every 5 minutes
+    const interval = setInterval(fetchData, 300000);
     return () => clearInterval(interval);
   }, []);
 
@@ -216,7 +216,7 @@ export const Dashboard = () => {
       {stats?.from_cache && (
         <Alert
           message="Data loaded from Redis cache"
-          description="90%+ faster response time! 🚀"
+          description="Faster response time! 🚀"
           type="success"
           showIcon
           icon={<ThunderboltOutlined />}
