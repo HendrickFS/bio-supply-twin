@@ -13,6 +13,8 @@ The Bio Supply Twin is a microservices-based Digital Twin that creates a living,
 - **Redis Cache** - High-performance caching layer
 - **PostgreSQL** - Robust relational database with ACID compliance
 
+- <img width="1145" height="273" alt="image" src="https://github.com/user-attachments/assets/8b0f86ce-3669-403e-8f53-46b9c533f92e" />
+
 ### **Key Technical Skills**
 - **Performance Optimization** - Redis caching with TTL strategies
 - **Real-time Systems** - MQTT pub/sub for IoT sensor data
