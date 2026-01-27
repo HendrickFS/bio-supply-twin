@@ -5,9 +5,10 @@
 
 import { ConfigProvider, Layout, Menu, theme } from 'antd';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
-import { DashboardOutlined, EnvironmentOutlined } from '@ant-design/icons';
+import { DashboardOutlined, EnvironmentOutlined, ExperimentOutlined } from '@ant-design/icons';
 import { Dashboard } from '../features/dashboard/Dashboard';
 import { BoxTracking } from '../features/transport-boxes/BoxTracking';
+import { BoxSamples } from '../features/transport-boxes/BoxSamples';
 import './App.css';
 
 const { Header, Content, Footer } = Layout;
@@ -51,6 +52,11 @@ function App() {
                   icon: <EnvironmentOutlined />,
                   label: <Link to="/tracking">Box Tracking</Link>,
                 },
+                {
+                  key: 'samples',
+                  icon: <ExperimentOutlined />,
+                  label: <Link to="/samples">Box Samples</Link>,
+                },
               ]}
             />
           </Header>
@@ -59,6 +65,7 @@ function App() {
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/tracking" element={<BoxTracking />} />
+              <Route path="/samples" element={<BoxSamples />} />
             </Routes>
           </Content>
           

@@ -64,7 +64,7 @@ export interface TransportBox {
 
 export interface Sample {
   sample_id: string;
-  box_id: number;
+  box: number;
   name: string;
   description: string;
   collected_at: string;

@@ -4,7 +4,7 @@ Real-Time Route Simulation Script
 
 Purpose:
     Simulate a realistic journey for a transport box by sending telemetry data
-    that creates an actual route between locations over time.
+    via MQTT that creates an actual route between locations over time.
 
 Features:
     - Realistic route planning between cities
@@ -12,15 +12,18 @@ Features:
     - Time-based progression
     - Intermediate waypoints
     - Status updates based on journey phase
+    - MQTT telemetry publishing
 
 Usage:
     python simulate_route.py --box BOX-0001 --route "Boston->New York->Philadelphia"
     python simulate_route.py --box BOX-0001 --route "San Francisco->Los Angeles" --speed 5
     python simulate_route.py --box BOX-0001 --random --stops 5
+    python simulate_route.py --box BOX-0001 --route "Boston->New York" --broker localhost --port 1883
 
 """
 
-import requests
+import paho.mqtt.client as mqtt
+import json
 import random
 import time
 import argparse
@@ -29,7 +32,8 @@ from typing import List, Dict, Tuple
 import math
 
 
-API_BASE_URL = "http://localhost:8000/api"
+MQTT_BROKER = "localhost"
+MQTT_PORT = 1883
 
 # Major cities with GPS coordinates
 CITIES = {
@@ -60,64 +64,79 @@ PREDEFINED_ROUTES = {
 
 
 class RouteSimulator:
-    """Simulates a realistic journey with telemetry updates"""
+    """Simulates a realistic journey with MQTT telemetry updates"""
 
-    def __init__(self, base_url: str = API_BASE_URL):
-        self.base_url = base_url
-        self.session = requests.Session()
-        self.session.headers.update({"Content-Type": "application/json"})
-
-    def get_box(self, box_id: str) -> Dict:
-        """Fetch box information"""
+    def __init__(self, broker: str = MQTT_BROKER, port: int = MQTT_PORT):
+        self.broker = broker
+        self.port = port
+        self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
+        self.client.on_connect = self._on_connect
+        self.client.on_publish = self._on_publish
+        self.connected = False
+        
+        # Connect to MQTT broker
         try:
-            response = self.session.get(f"{self.base_url}/transport_boxes/{box_id}/")
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            print(f"❌ Error fetching box {box_id}: {e}")
-            return None
+            print(f"🔌 Connecting to MQTT broker at {broker}:{port}...")
+            self.client.connect(broker, port, keepalive=60)
+            self.client.loop_start()
+            time.sleep(1)  # Wait for connection
+            self.connected = True
+            print("✅ Connected to MQTT broker")
+        except Exception as e:
+            print(f"❌ Failed to connect to MQTT broker: {e}")
+            self.connected = False
 
-    def update_box(self, box_id: str, data: Dict) -> bool:
-        """Update box data"""
-        try:
-            response = self.session.patch(
-                f"{self.base_url}/transport_boxes/{box_id}/",
-                json=data
-            )
-            response.raise_for_status()
-            return True
-        except requests.exceptions.RequestException as e:
-            print(f"❌ Error updating box {box_id}: {e}")
-            return False
+    def _on_connect(self, client, userdata, flags, rc):
+        """Callback for when the client connects to the broker"""
+        if rc == 0:
+            self.connected = True
+        else:
+            print(f"❌ Connection failed with code {rc}")
+            self.connected = False
+
+    def _on_publish(self, client, userdata, mid):
+        """Callback for when a message is published"""
+        pass
 
     def send_telemetry(self, box_id: str, lat: float, lng: float,
-                      temperature: float, humidity: float, timestamp: str = None) -> bool:
-        """Send telemetry reading"""
-        box = self.get_box(box_id)
-        if not box:
+                      temperature: float, humidity: float, status: str = "in_transit",
+                      timestamp: str = None) -> bool:
+        """Send telemetry reading via MQTT"""
+        if not self.connected:
+            print("❌ Not connected to MQTT broker")
             return False
 
         if timestamp is None:
             timestamp = datetime.utcnow().isoformat() + "Z"
 
         telemetry_data = {
-            "box": box["id"],
             "temperature": round(temperature, 2),
             "humidity": round(humidity, 2),
             "geolocation": f"{lat},{lng}",
             "timestamp": timestamp,
+            "status": status
         }
 
         try:
-            response = self.session.post(
-                f"{self.base_url}/telemetry/",
-                json=telemetry_data
-            )
-            response.raise_for_status()
-            return True
-        except requests.exceptions.RequestException as e:
+            topic = f"bio_supply/telemetry/box/{box_id}"
+            payload = json.dumps(telemetry_data)
+            result = self.client.publish(topic, payload, qos=1)
+            
+            if result.rc == mqtt.MQTT_ERR_SUCCESS:
+                return True
+            else:
+                print(f"❌ Failed to publish telemetry: {result.rc}")
+                return False
+        except Exception as e:
             print(f"❌ Error sending telemetry: {e}")
             return False
+
+    def disconnect(self):
+        """Disconnect from MQTT broker"""
+        if self.connected:
+            self.client.loop_stop()
+            self.client.disconnect()
+            print("🔌 Disconnected from MQTT broker")
 
     def calculate_distance(self, lat1: float, lng1: float, lat2: float, lng2: float) -> float:
         """Calculate distance between two points in kilometers"""
@@ -232,17 +251,9 @@ class RouteSimulator:
                 # Send telemetry
                 location_name = f"{cities[segment_idx + 1] if wp_idx == waypoints_per_segment else cities[segment_idx]}"
                 
-                success = self.send_telemetry(box_id, lat, lng, temp, humidity)
+                success = self.send_telemetry(box_id, lat, lng, temp, humidity, status)
                 
                 if success:
-                    # Update box status
-                    self.update_box(box_id, {
-                        "temperature": round(temp, 2),
-                        "humidity": round(humidity, 2),
-                        "geolocation": f"{lat},{lng}",
-                        "status": status
-                    })
-                    
                     progress = (waypoint_count / total_waypoints) * 100
                     print(f"   {status_emoji} Waypoint {waypoint_count}/{total_waypoints} ({progress:.0f}%): "
                           f"{lat:.4f},{lng:.4f} | {temp:.1f}°C, {humidity:.0f}% | {status}")
@@ -253,7 +264,7 @@ class RouteSimulator:
 
         print("\n" + "=" * 70)
         print(f"✅ Journey Complete! {box_id} has arrived at {cities[-1]}")
-        print(f"📊 Total waypoints: {waypoint_count}")
+        print(f"📊 Total waypoints: {waypoint_count}") 
         print(f"⏱️  Total time: {(waypoint_count * interval_seconds) / 60:.1f} minutes")
         print("=" * 70 + "\n")
 
@@ -302,10 +313,16 @@ def main():
         help="Number of waypoints between each city (default: 4)"
     )
     parser.add_argument(
-        "--url",
+        "--broker",
         type=str,
-        default=API_BASE_URL,
-        help=f"API base URL (default: {API_BASE_URL})"
+        default=MQTT_BROKER,
+        help=f"MQTT broker host (default: {MQTT_BROKER})"
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=MQTT_PORT,
+        help=f"MQTT broker port (default: {MQTT_PORT})"
     )
     parser.add_argument(
         "--list-cities",
@@ -346,8 +363,16 @@ def main():
         print("❌ Please specify --route, --predefined, or --random")
         return
 
-    simulator = RouteSimulator(args.url)
-    simulator.simulate_route(args.box, cities, args.interval, args.waypoints)
+    simulator = RouteSimulator(args.broker, args.port)
+    
+    if not simulator.connected:
+        print("❌ Failed to connect to MQTT broker. Exiting.")
+        return
+    
+    try:
+        simulator.simulate_route(args.box, cities, args.interval, args.waypoints)
+    finally:
+        simulator.disconnect()
 
 
 if __name__ == "__main__":
